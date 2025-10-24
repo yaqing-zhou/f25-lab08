@@ -26,6 +26,8 @@ public class SimpleHashMap<K, V> {
 
     private final int numBuckets;
 
+    private final Object[] bucketLocks;
+
     /**
      * Constructs a new hash map with a given number of buckets.
      */
@@ -37,8 +39,12 @@ public class SimpleHashMap<K, V> {
 
         this.numBuckets = numBuckets;
         table = new ArrayList<>(this.numBuckets);
+
+        this.bucketLocks = new Object[this.numBuckets];
+
         for (int i = 0; i < numBuckets; i++) {
             table.add(new LinkedList<>());
+            bucketLocks[i] = new Object();
         }
     }
 
@@ -55,17 +61,19 @@ public class SimpleHashMap<K, V> {
         if (key == null)
             throw new NullPointerException("Key can't be null.");
 
-        List<Entry<K,V>> bucket = table.get(hash(key));
-        for (Entry<K, V> e : bucket) {
-            if (e.key.equals(key)) {
-                V result = e.value;
-                e.value = value;
-                return result;
+        int idx = hash(key);
+        synchronized (bucketLocks[idx]) {
+            List<Entry<K,V>> bucket = table.get(idx);
+            for (Entry<K, V> e : bucket) {
+                if (e.key.equals(key)) {
+                    V result = e.value;
+                    e.value = value;
+                    return result;
+                }
             }
+            bucket.add(new Entry<>(key, value));
+            return null;
         }
-
-        bucket.add(new Entry<>(key, value));
-        return null;
     }
 
     /**
@@ -75,13 +83,16 @@ public class SimpleHashMap<K, V> {
      * @return The value for the given key, or null if the key is not present.
      */
     public V get(K key) {
-        List<Entry<K,V>> bucket = table.get(hash(key));
-        for (Entry<K, V> e : bucket) {
-            if (e.key.equals(key)) {
-                return e.value;
+        int idx = hash(key);
+        synchronized (bucketLocks[idx]) {
+            List<Entry<K,V>> bucket = table.get(idx);
+            for (Entry<K, V> e : bucket) {
+                if (e.key.equals(key)) {
+                    return e.value;
+                }
             }
+            return null;
         }
-        return null;
     }
 
     /**
